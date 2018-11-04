@@ -277,6 +277,24 @@ template< class UnitT >
 using apply_decomposition = typename unit_decomposition<UnitT, convert_result_neutral>::type;
 
 
+// sum up the steps
+template< class Unit1, class Unit2 >
+struct unit_conversion
+{
+private:
+	typedef apply_decomposition<Unit1> dec1;
+	typedef apply_decomposition<Unit2> dec2;
+	typedef apply_intern_conversion<typename dec1::type> int1;
+	typedef apply_intern_conversion<typename dec2::type> int2;
+	typedef search_conversion<typename int1::type, typename int2::type, convert_result_neutral> search_result;
+
+public:
+	static constexpr bool is_convertible = search_result::is_convertible;
+	static constexpr double conversion_factor = dec1::conversion_factor * int1::conversion_factor
+		* search_result::conversion_factor / dec2::conversion_factor / int2::conversion_factor;
+};
+
+
 template< class U1, class U2 >
 using get_factor_if_convertible = std::enable_if_t<search_conversion<U1, U2, convert_result_neutral>::is_convertible,
 	search_conversion<U1, U2, convert_result_neutral>>;
