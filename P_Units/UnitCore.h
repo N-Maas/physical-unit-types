@@ -233,7 +233,49 @@ struct intern_conversion<U, Unit<Left_PoUs...>, Unit<PowerOfUnit<Head_U, head_p>
 };
 
 template< class UnitT >
-using apply_intern_conversion_t = typename intern_conversion<void, UnitT, Unit<>, convert_result_neutral>::type;
+using apply_intern_conversion = typename intern_conversion<void, UnitT, Unit<>, convert_result_neutral>::type;
+
+
+// preparation: decomposition of combined units
+
+// helper containing a conversion result
+template< class T, int power, typename... Ts >
+struct powered_unit_helper;
+
+template< class T, int power, class... Us, int... ps >
+struct powered_unit_helper<T, power, Unit<PowerOfUnit<Us, ps>...>>
+{
+	static constexpr bool is_convertible = true;
+	static constexpr double conversion_factor = constexpr_pow(T::conversion_factor, power);
+	typedef Unit<PowerOfUnit<Us, power * ps>...> type;
+};
+
+// decomposition of all contained combined types
+template< typename... Ts>
+struct unit_decomposition;
+
+// base case
+template< class C_Result >
+struct unit_decomposition<Unit<>, C_Result>
+{
+	typedef C_Result type;
+};
+
+template< class Head_U, int head_p, class... PoUs, class C_Result >
+struct unit_decomposition<Unit<PowerOfUnit<Head_U, head_p>, PoUs...>, C_Result>
+{
+	typedef typename unit_decomposition<Unit<PoUs...>, combine_results<C_Result,
+		std::conditional_t<Head_U::is_combined_unit,
+			// case 1: is combined unit, append decomposition
+			powered_unit_helper<Head_U, head_p, typename Head_U::decomposition_type>,
+			// case 1: is not combined, append as unchanged
+			convert_result_helper<convert_result_neutral, 0, PowerOfUnit<Head_U, head_p>>>>
+		>::type type;
+};
+
+template< class UnitT >
+using apply_decomposition = typename unit_decomposition<UnitT, convert_result_neutral>::type;
+
 
 template< class U1, class U2 >
 using get_factor_if_convertible = std::enable_if_t<search_conversion<U1, U2, convert_result_neutral>::is_convertible,
