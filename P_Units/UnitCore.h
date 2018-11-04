@@ -126,6 +126,7 @@ struct convert_result_neutral
 {
 	static constexpr bool is_convertible = true;
 	static constexpr double conversion_factor = 1;
+	typedef Unit<> type;
 };
 
 template< class R1, class R2 >
@@ -133,6 +134,7 @@ struct combine_results
 {
 	static constexpr bool is_convertible = R1::is_convertible && R2::is_convertible;
 	static constexpr double conversion_factor = R1::conversion_factor * R2::conversion_factor;
+	typedef mult_units_t<typename R1::type, typename R2::type> type;
 };
 
 // conversion of one PoU
@@ -160,37 +162,37 @@ private:
 			convert_result_false>,
 		// case 2: not found, recursion needed
 		search_elementary_conversion<PowerOfUnit<Searched_U, searched_p>, Unit<R_PoUs..., PowerOfUnit<Head_U, head_p>>, Unit<PoUs...>>
-	> convert_result;
+	> C_Result;
 
 public:
-	static constexpr bool is_convertible = convert_result::is_convertible;
-	static constexpr double conversion_factor = convert_result::conversion_factor;
-	typedef typename convert_result::type type;
+	static constexpr bool is_convertible = C_Result::is_convertible;
+	static constexpr double conversion_factor = C_Result::conversion_factor;
+	typedef typename C_Result::type type;
 };
 
 template< typename... Ts >
 struct search_conversion;
 
 // base case 1
-template<class convert_result>
-struct search_conversion<Unit<>, Unit<>, convert_result> {
-	static constexpr bool is_convertible = convert_result::is_convertible;
-	static constexpr double conversion_factor = convert_result::conversion_factor;
+template<class C_Result>
+struct search_conversion<Unit<>, Unit<>, C_Result> {
+	static constexpr bool is_convertible = C_Result::is_convertible;
+	static constexpr double conversion_factor = C_Result::conversion_factor;
 };
 
 // base case 2
-template<class... Right_PoUs, class convert_result>
-struct search_conversion<Unit<>, Unit<Right_PoUs...>, convert_result> {
+template<class... Right_PoUs, class C_Result>
+struct search_conversion<Unit<>, Unit<Right_PoUs...>, C_Result> {
 	static constexpr bool is_convertible = false;
 	static constexpr double conversion_factor = 0;
 };
 
-template<class Head_PoU, class... Left_PoUs, class... Right_PoUs, class convert_result>
-struct search_conversion<Unit<Head_PoU, Left_PoUs...>, Unit<Right_PoUs...>, convert_result> {
+template<class Head_PoU, class... Left_PoUs, class... Right_PoUs, class C_Result>
+struct search_conversion<Unit<Head_PoU, Left_PoUs...>, Unit<Right_PoUs...>, C_Result> {
 private:
 	typedef search_elementary_conversion<Head_PoU, Unit<>, Unit<Right_PoUs...>> search_result;
-	typedef std::conditional_t<(search_result::is_convertible && convert_result::is_convertible),
-		search_conversion<Unit<Left_PoUs...>, typename search_result::type, combine_results<convert_result, search_result>>,
+	typedef std::conditional_t<(search_result::is_convertible && C_Result::is_convertible),
+		search_conversion<Unit<Left_PoUs...>, typename search_result::type, combine_results<C_Result, search_result>>,
 		convert_result_false
 		> final_result;
 
@@ -198,6 +200,40 @@ public:
 	static constexpr bool is_convertible = final_result::is_convertible;
 	static constexpr double conversion_factor = final_result::conversion_factor;
 };
+
+// preparation: eliminating intern conversion possibilities of a unit
+template< typename... Ts >
+struct intern_conversion;
+
+// base case
+template< class U, class C_Result >
+struct intern_conversion< U, Unit<>, Unit<>, C_Result >
+{
+	typedef C_Result type;
+};
+
+// case when end of right unit is reached: taking first unit, starting again
+template< class U, class Head_U, int head_p, class... Left_PoUs , class C_Result >
+struct intern_conversion< U, Unit<PowerOfUnit<Head_U, head_p>, Left_PoUs...>, Unit<>, C_Result >
+{
+	typedef typename intern_conversion<Head_U, Unit<>, Unit<Left_PoUs...>,
+		combine_results<C_Result, convert_result_helper<convert_result_neutral, 0, PowerOfUnit<Head_U, head_p>>>>::type type;
+};
+
+template< class U, class... Left_PoUs, class Head_U, int head_p, class... Right_PoUs, class C_Result >
+struct intern_conversion<U, Unit<Left_PoUs...>, Unit<PowerOfUnit<Head_U, head_p>, Right_PoUs...>, C_Result>
+{
+	typedef typename std::conditional_t<sym_conversion_data<Head_U, U>::is_convertible,
+		// case 1: is convertible, combining the results
+		intern_conversion<U, Unit<Left_PoUs...>, Unit<Right_PoUs...>,
+			combine_results<C_Result, convert_result_helper<sym_conversion_data<Head_U, U>, head_p, PowerOfUnit<U, head_p>>>>,
+		// case 2: not convertible, just appending to left unit
+		intern_conversion<U, Unit<Left_PoUs..., PowerOfUnit<Head_U, head_p>>, Unit<Right_PoUs...>, C_Result>
+	>::type type;
+};
+
+template< class UnitT >
+using apply_intern_conversion_t = typename intern_conversion<void, UnitT, Unit<>, convert_result_neutral>::type;
 
 template< class U1, class U2 >
 using get_factor_if_convertible = std::enable_if_t<search_conversion<U1, U2, convert_result_neutral>::is_convertible,
@@ -211,9 +247,11 @@ class Unit<>
 	const double val;
 
 public:
-	constexpr explicit Unit<>(const double& val) : val(val) {}
+	constexpr Unit<>(double val) : val(val) {}
 
-	constexpr double value() const { return val; }
+	constexpr operator double() const { return val; }
+
+	constexpr double value() const { return *this; }
 };
 
 template< class... Us, int... powers >
@@ -222,7 +260,7 @@ class Unit<PowerOfUnit<Us, powers>...>
 	const double val;
 
 public:
-	constexpr explicit Unit<PowerOfUnit<Us, powers>...>(const double& val) : val(val) {}
+	constexpr explicit Unit<PowerOfUnit<Us, powers>...>(double val) : val(val) {}
 
 	constexpr double value() const { return val; }
 };
