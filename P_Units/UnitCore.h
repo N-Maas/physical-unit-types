@@ -323,6 +323,14 @@ public:
 	constexpr explicit Unit<PowerOfUnit<Us, powers>...>(double val) : val(val) {}
 
 	constexpr double value() const { return val; }
+
+	// TODO: implicit/explicit/no conversion should be definable by template or macro
+	template< class... PoUs, typename ConversionT = unit_conversion<Unit<PowerOfUnit<Us, powers>...>, Unit<PoUs...>>,
+		typename = std::enable_if_t<ConversionT::is_convertible> >
+	constexpr explicit operator Unit<PoUs...>()
+	{
+		return Unit<PoUs...>(ConversionT::conversion_factor * value());
+	}
 };
 
 template< class... PoUs >
