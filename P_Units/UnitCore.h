@@ -3,6 +3,13 @@
 #include <type_traits>
 #include <typeinfo>
 
+enum class ConversionPolicy
+{
+	NoConversion,
+	ExplicitConversion,
+	ImplicitConversion
+};
+
 template< class U, int pwr >
 struct PowerOfUnit
 {
@@ -30,11 +37,32 @@ constexpr double constexpr_pow(const double val, int exp)
 
 // ----
 
+// fwd declarations
 template< typename... Ts >
 class Unit;
 
+template< ConversionPolicy, typename... Ts >
+class PUnit;
+
 
 // HELPERS
+template< class, ConversionPolicy >
+struct to_punit;
+
+template< class... PoUs, ConversionPolicy p >
+struct to_punit< Unit<PoUs...>, p >
+{
+	typedef PUnit<p, PoUs...> type;
+};
+
+template< class, ConversionPolicy >
+struct punit_set_policy;
+
+template< class... PoUs, ConversionPolicy old_p, ConversionPolicy new_p >
+struct punit_set_policy< PUnit<old_p, PoUs...>, new_p >
+{
+	typedef PUnit<new_p, PoUs...> type;
+};
 
 template< typename... Ts >
 struct mult_units;
@@ -87,6 +115,10 @@ struct mult_units<Unit<R_PoUs...>, Unit<H1, PoU1s...>, Unit<H2, PoU2s...>>
 
 template< class Unit1, class Unit2 >
 using mult_units_t = typename mult_units<Unit<>, Unit1, Unit2>::type;
+
+
+template< class Unit1, class Unit2, ConversionPolicy p >
+using mult_punits_t = typename to_punit<mult_units_t<Unit1, Unit2>, p>::type;
 
 // conversion between two unit types
 template< class U1, class U2 >
@@ -301,46 +333,90 @@ using get_factor_if_convertible = std::enable_if_t<search_conversion<U1, U2, con
 
 // ----
 
+// core metaprogramming class representing a unit
 template<>
 class Unit<>
 {
+protected:
 	const double val;
 
-public:
 	constexpr Unit<>(double val) : val(val) {}
-
-	constexpr operator double() const { return val; }
-
-	constexpr double value() const { return *this; }
 };
 
 template< class... Us, int... powers >
 class Unit<PowerOfUnit<Us, powers>...>
 {
+protected:
 	const double val;
 
-public:
 	constexpr explicit Unit<PowerOfUnit<Us, powers>...>(double val) : val(val) {}
+};
 
-	constexpr double value() const { return val; }
 
-	// TODO: implicit/explicit/no conversion should be definable by template or macro
-	template< class... PoUs, typename ConversionT = unit_conversion<Unit<PowerOfUnit<Us, powers>...>, Unit<PoUs...>>,
-		typename = std::enable_if_t<ConversionT::is_convertible> >
-	constexpr explicit operator Unit<PoUs...>()
+// wrapper for unit, adding the conversion policy
+template<ConversionPolicy policy>
+class PUnit<policy> : Unit<>
+{
+public:
+	constexpr PUnit<policy>(double val) : Unit<>(val) {}
+
+	constexpr operator double() const { return Unit<>::val; }
+
+	constexpr double value() const { return Unit<>::val; }
+
+	// necessary to restrict conversions to stricter policy?
+	template< ConversionPolicy new_p, typename = std::enable_if_t<new_p <= policy> >
+	constexpr operator PUnit<new_p>()
 	{
-		return Unit<PoUs...>(ConversionT::conversion_factor * value());
+		return PUnit<new_p>(value());
 	}
 };
 
-template< class... PoUs >
-constexpr Unit<PoUs...> operator+ (Unit<PoUs...> left, Unit<PoUs...> right)
+template< ConversionPolicy policy, class... PoUs>
+class PUnit<policy, PoUs...> : Unit<PoUs...>
 {
-	return Unit<PoUs...>(left.value() + right.value());
+public:
+	constexpr explicit PUnit<policy, PoUs...>(double val) : Unit<PoUs...>(val) {}
+
+	constexpr double value() const { return  Unit<PoUs...>::val; }
+
+	template< ConversionPolicy new_p, class... NewPoUs, typename ConversionT = unit_conversion<Unit<PoUs...>, Unit<NewPoUs...>>,
+		typename = std::enable_if_t<policy == ConversionPolicy::ExplicitConversion && (new_p <= policy) && ConversionT::is_convertible> >
+	constexpr explicit operator PUnit<new_p, NewPoUs...>() const
+	{
+		return PUnit<new_p, NewPoUs...>(ConversionT::conversion_factor * value());
+	}
+
+	template< ConversionPolicy new_p, class... NewPoUs, typename ConversionT = unit_conversion<Unit<PoUs...>, Unit<NewPoUs...>>,
+		typename = std::enable_if_t<policy == ConversionPolicy::ImplicitConversion && (new_p <= policy) && ConversionT::is_convertible>, typename = void >
+	constexpr operator PUnit<new_p, NewPoUs...>() const
+	{
+		return PUnit<new_p, NewPoUs...>(ConversionT::conversion_factor * value());
+	}
+};
+
+template<  ConversionPolicy p, class... PoUs >
+constexpr PUnit<p, PoUs...> operator+ (PUnit<p, PoUs...> left, PUnit<p, PoUs...> right)
+{
+	return PUnit<p, PoUs...>(left.value() + right.value());
 }
 
-template< class... Left_PoUs, class... Right_PoUs >
-constexpr mult_units_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>> operator* (Unit<Left_PoUs...> left, Unit<Right_PoUs...> right)
+template<  ConversionPolicy p, class... PoUs >
+constexpr PUnit<p, PoUs...> operator- (PUnit<p, PoUs...> left, PUnit<p, PoUs...> right)
 {
-	return mult_units_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>>(left.value() * right.value());
+	return PUnit<p, PoUs...>(left.value() - right.value());
+}
+
+template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
+constexpr mult_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p> operator* (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+{
+	return mult_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p>(left.value() * right.value());
+}
+
+// necessary to enable overload matching for numbers
+// right sided?
+template< ConversionPolicy p, class... PoUs >
+constexpr mult_punits_t<Unit<>, Unit<PoUs...>, p> operator* (double left, PUnit<p, PoUs...> right)
+{
+	return mult_punits_t<Unit<>, Unit<PoUs...>, p>(left * right.value());
 }
