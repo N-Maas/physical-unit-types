@@ -3,6 +3,43 @@
 #include <type_traits>
 #include <typeinfo>
 
+
+// macros for getting unit types
+#define UNIT_T(x) std::remove_const_t<decltype(x)> 
+#define UNIT_P_T(x, policy) punit_set_policy<std::remove_const_t<decltype(x)>, policy>::type 
+
+#define XPU_DEF_UNIT_HELPER(x_uid, x_uname, x_is_comb, x_cf, x_dct, x_bt, x_ualias, x_upolicy) \
+	struct x_uname \
+	{ \
+		static constexpr size_t unit_id = x_uid; \
+		static constexpr bool is_combined_unit = x_is_comb; \
+		static constexpr double conversion_factor = x_cf; \
+		typedef x_dct decomposition_type; \
+		typedef x_bt base_unit_type; \
+	}; \
+	 \
+	constexpr PUnit<ConversionPolicy:: ## x_upolicy, PowerOfUnit<x_uname, 1>> x_ualias{ 1.0 } \
+
+// macros for unit definitions
+// appending _P to the macro name additionally defines the default conversion policy for the unit
+#define DEFINE_BASE_UNIT_P(x_uid, x_uname, x_ualias, x_upolicy) \
+	XPU_DEF_UNIT_HELPER(x_uid, x_uname, false, 1.0, void, x_uname, x_ualias, x_upolicy)
+
+#define DEFINE_BASE_UNIT(x_uid, x_uname, x_ualias) \
+	DEFINE_BASE_UNIT_P(x_uid, x_uname, x_ualias, ExplicitConversion)
+
+#define DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_ubase, x_uconversionfactor, x_upolicy) \
+	XPU_DEF_UNIT_HELPER(x_uid, x_uname, false, x_uconversionfactor, void, x_ubase, x_ualias, x_upolicy)
+
+#define DEFINE_DEPENDENT_UNIT(x_uid, x_uname, x_ualias, x_ubase, x_ucf) \
+	DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_ubase, x_ucf, ExplicitConversion)
+
+#define DEFINE_COMBINED_UNIT_P(x_uid, x_uname, x_ualias, x_udecomposition_alias, x_uconversionfactor, x_upolicy) \
+	XPU_DEF_UNIT_HELPER(x_uid, x_uname, true, x_uconversionfactor, to_unit<UNIT_T(x_udecomposition_alias)>::type, void, x_ualias, x_upolicy)
+
+#define DEFINE_COMBINED_UNIT(x_uid, x_uname, x_ualias, x_uda, x_ucf) \
+	DEFINE_COMBINED_UNIT_P(x_uid, x_uname, x_ualias, x_uda, x_ucf, ExplicitConversion)
+
 enum class ConversionPolicy
 {
 	NoConversion,
@@ -19,8 +56,7 @@ struct PowerOfUnit
 };
 
 // constexpr pow
-
-constexpr double constexpr_pow(const double val, int exp)
+constexpr double constexpr_pow(double val, int exp)
 {
 	if (exp == 0) {
 		return 1;
@@ -53,6 +89,15 @@ template< class... PoUs, ConversionPolicy p >
 struct to_punit< Unit<PoUs...>, p >
 {
 	typedef PUnit<p, PoUs...> type;
+};
+
+template< class >
+struct to_unit;
+
+template< class... PoUs, ConversionPolicy p >
+struct to_unit< PUnit<p, PoUs...> >
+{
+	typedef Unit<PoUs...> type;
 };
 
 template< class, ConversionPolicy >
