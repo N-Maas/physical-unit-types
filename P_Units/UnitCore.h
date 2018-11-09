@@ -120,22 +120,13 @@ using mult_units_t = typename mult_units<Unit<>, Unit1, Unit2>::type;
 template< class Unit1, class Unit2, ConversionPolicy p >
 using mult_punits_t = typename to_punit<mult_units_t<Unit1, Unit2>, p>::type;
 
-// conversion between two unit types
+// unit_conversion_data defines the member is_convertible, that is true exactly if U1 can be converted to U2
+// if a conversion is possible, the member conversion_factor holds the conversion factor
 template< class U1, class U2 >
 struct unit_conversion_data
 {
-	static constexpr bool is_convertible = std::is_same_v<U1, U2>;
-	static constexpr double conversion_factor = is_convertible ? 1 : 0;
-};
-
-// if a conversion is possible, elementary_convert_to defines the member value holding the conversion factor
-// if no conversion is possible, elementary_convert_to can not be resolved
-template< class U1, class U2 >
-struct sym_conversion_data
-{
-	static constexpr bool is_convertible = unit_conversion_data<U1, U2>::is_convertible || unit_conversion_data<U2, U1>::is_convertible;
-	static constexpr double conversion_factor = is_convertible ? (unit_conversion_data<U1, U2>::is_convertible ?
-		unit_conversion_data<U1, U2>::conversion_factor : 1.0 / unit_conversion_data<U2, U1>::conversion_factor) : 0;
+	static constexpr bool is_convertible = std::is_same_v<typename U1::base_unit_type, typename U2::base_unit_type>;
+	static constexpr double conversion_factor = is_convertible ? (U1::conversion_factor / U2::conversion_factor) : 0;
 };
 
 // helper containing a conversion result
@@ -185,11 +176,11 @@ template< class Searched_U, int searched_p, class... R_PoUs, class Head_U, int h
 struct search_elementary_conversion<PowerOfUnit<Searched_U, searched_p>, Unit<R_PoUs...>, Unit<PowerOfUnit<Head_U, head_p>, PoUs...>>
 {
 private:
-	typedef std::conditional_t<sym_conversion_data<Searched_U, Head_U>::is_convertible,
+	typedef std::conditional_t<unit_conversion_data<Searched_U, Head_U>::is_convertible,
 		// case 1: conversion is found at head
 		std::conditional_t<searched_p == head_p,
 			// case 1 a: correct power
-			convert_result_helper<sym_conversion_data<Searched_U, Head_U>, searched_p, R_PoUs..., PoUs...>,
+			convert_result_helper<unit_conversion_data<Searched_U, Head_U>, searched_p, R_PoUs..., PoUs...>,
 			// case 1 b: wrong power
 			convert_result_false>,
 		// case 2: not found, recursion needed
@@ -255,10 +246,10 @@ struct intern_conversion< U, Unit<PowerOfUnit<Head_U, head_p>, Left_PoUs...>, Un
 template< class U, class... Left_PoUs, class Head_U, int head_p, class... Right_PoUs, class C_Result >
 struct intern_conversion<U, Unit<Left_PoUs...>, Unit<PowerOfUnit<Head_U, head_p>, Right_PoUs...>, C_Result>
 {
-	typedef typename std::conditional_t<sym_conversion_data<Head_U, U>::is_convertible,
+	typedef typename std::conditional_t<unit_conversion_data<Head_U, U>::is_convertible,
 		// case 1: is convertible, combining the results
 		intern_conversion<U, Unit<Left_PoUs...>, Unit<Right_PoUs...>,
-			combine_results<C_Result, convert_result_helper<sym_conversion_data<Head_U, U>, head_p, PowerOfUnit<U, head_p>>>>,
+			combine_results<C_Result, convert_result_helper<unit_conversion_data<Head_U, U>, head_p, PowerOfUnit<U, head_p>>>>,
 		// case 2: not convertible, just appending to left unit
 		intern_conversion<U, Unit<Left_PoUs..., PowerOfUnit<Head_U, head_p>>, Unit<Right_PoUs...>, C_Result>
 	>::type type;
@@ -279,7 +270,15 @@ struct powered_unit_helper<T, power, Unit<PowerOfUnit<Us, ps>...>>
 {
 	static constexpr bool is_convertible = true;
 	static constexpr double conversion_factor = constexpr_pow(T::conversion_factor, power);
-	typedef Unit<PowerOfUnit<Us, power * ps>...> type;
+	typedef Unit<> type;
+	typedef Unit<PowerOfUnit<Us, power * ps>...> powered_type;
+};
+
+// no result placeholder
+struct empty_powered_unit
+{
+	typedef void type;
+	typedef Unit<> powered_type;
 };
 
 // decomposition of all contained combined types
@@ -296,11 +295,16 @@ struct unit_decomposition<Unit<>, C_Result>
 template< class Head_U, int head_p, class... PoUs, class C_Result >
 struct unit_decomposition<Unit<PowerOfUnit<Head_U, head_p>, PoUs...>, C_Result>
 {
+private:
+	typedef std::conditional_t<Head_U::is_combined_unit, powered_unit_helper<Head_U, head_p,
+		typename Head_U::decomposition_type>, empty_powered_unit> powered_result_type;
+
+public:
 	typedef typename unit_decomposition<Unit<PoUs...>, combine_results<C_Result,
 		std::conditional_t<Head_U::is_combined_unit,
-			// case 1: is combined unit, append decomposition
-			powered_unit_helper<Head_U, head_p, typename Head_U::decomposition_type>,
-			// case 1: is not combined, append as unchanged
+			// case 1: is combined unit, append decomposition and call recursively
+			typename unit_decomposition<typename powered_result_type::powered_type, powered_result_type>::type,
+			// case 2: is not combined, append unchanged
 			convert_result_helper<convert_result_neutral, 0, PowerOfUnit<Head_U, head_p>>>>
 		>::type type;
 };
