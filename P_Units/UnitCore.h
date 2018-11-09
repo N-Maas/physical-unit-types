@@ -64,9 +64,6 @@ struct punit_set_policy< PUnit<old_p, PoUs...>, new_p >
 	typedef PUnit<new_p, PoUs...> type;
 };
 
-template< typename... Ts >
-struct mult_units;
-
 // helper to test for power of 0
 template< typename... Ts >
 struct non_zero_append_to_unit;
@@ -83,8 +80,10 @@ struct non_zero_append_to_unit<Unit<PoUs...>, PowerOfUnit<U, 0>>
 	typedef Unit<PoUs...> type;
 };
 
-
 // multiplication of two Unit Types
+template< typename... Ts >
+struct mult_units;
+
 // base case 1
 template< class... R_PoUs, class... PoUs >
 struct mult_units<Unit<R_PoUs...>, Unit<>, Unit<PoUs...>>
@@ -116,9 +115,21 @@ struct mult_units<Unit<R_PoUs...>, Unit<H1, PoU1s...>, Unit<H2, PoU2s...>>
 template< class Unit1, class Unit2 >
 using mult_units_t = typename mult_units<Unit<>, Unit1, Unit2>::type;
 
-
 template< class Unit1, class Unit2, ConversionPolicy p >
 using mult_punits_t = typename to_punit<mult_units_t<Unit1, Unit2>, p>::type;
+
+// multiplicative inverse type of a unit
+template< class >
+struct inverse_unit;
+
+template< class... Us, int... powers >
+struct inverse_unit<Unit<PowerOfUnit<Us, powers>...>>
+{
+	typedef Unit<PowerOfUnit<Us, -powers>...> type;
+};
+
+template< class Unit1, class Unit2, ConversionPolicy p >
+using div_punits_t = mult_punits_t<Unit1, typename inverse_unit<Unit2>::type, p>;
 
 // unit_conversion_data defines the member is_convertible, that is true exactly if U1 can be converted to U2
 // if a conversion is possible, the member conversion_factor holds the conversion factor
@@ -399,6 +410,8 @@ public:
 	}
 };
 
+
+// operators
 template<  ConversionPolicy p, class... PoUs >
 constexpr PUnit<p, PoUs...> operator+ (PUnit<p, PoUs...> left, PUnit<p, PoUs...> right)
 {
@@ -417,12 +430,34 @@ constexpr mult_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p> operator* (P
 	return mult_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p>(left.value() * right.value());
 }
 
-// necessary to enable overload matching for numbers
-// right sided?
 template< ConversionPolicy p, class... PoUs >
-constexpr mult_punits_t<Unit<>, Unit<PoUs...>, p> operator* (double left, PUnit<p, PoUs...> right)
+constexpr PUnit<p, PoUs...> operator* (double left, PUnit<p, PoUs...> right)
 {
-	return mult_punits_t<Unit<>, Unit<PoUs...>, p>(left * right.value());
+	return PUnit<p, PoUs...>(left * right.value());
+}
+
+template< ConversionPolicy p, class... PoUs >
+constexpr PUnit<p, PoUs...> operator* (PUnit<p, PoUs...> left, double right)
+{
+	return PUnit<p, PoUs...>(left.value() * right);
+}
+
+template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
+constexpr div_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p> operator/ (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+{
+	return div_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p>(left.value() / right.value());
+}
+
+template< ConversionPolicy p, class... PoUs >
+constexpr div_punits_t<Unit<>, Unit<PoUs...>, p> operator/ (double left, PUnit<p, PoUs...> right)
+{
+	return div_punits_t<Unit<>, Unit<PoUs...>, p>(left / right.value());
+}
+
+template< ConversionPolicy p, class... PoUs >
+constexpr PUnit<p, PoUs...> operator/ (PUnit<p, PoUs...> left, double right)
+{
+	return PUnit<p, PoUs...>(left.value() / right);
 }
 
 // conctruction functions
