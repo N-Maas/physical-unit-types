@@ -420,3 +420,16 @@ constexpr mult_punits_t<Unit<>, Unit<PoUs...>, p> operator* (double left, PUnit<
 {
 	return mult_punits_t<Unit<>, Unit<PoUs...>, p>(left * right.value());
 }
+
+// conctruction functions
+template< class... PoUs, ConversionPolicy p >
+constexpr PUnit<p, PoUs...> makeUnit(double val, PUnit<p, PoUs...>)
+{
+	return PUnit<p, PoUs...>(val);
+}
+
+template< ConversionPolicy policy, class... PoUs, ConversionPolicy p >
+constexpr PUnit<policy, PoUs...> makeUnit(double val, PUnit<p, PoUs...>)
+{
+	return PUnit<policy, PoUs...>(val);
+}
