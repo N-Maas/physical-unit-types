@@ -130,13 +130,20 @@ template< typename... Ts >
 struct mult_units;
 
 // base case 1
+template< class... R_PoUs >
+struct mult_units<Unit<R_PoUs...>, Unit<>, Unit<>>
+{
+	typedef Unit<R_PoUs...> type;
+};
+
+// base case 2
 template< class... R_PoUs, class... PoUs >
 struct mult_units<Unit<R_PoUs...>, Unit<>, Unit<PoUs...>>
 {
 	typedef Unit<R_PoUs..., PoUs...> type;
 };
 
-// base case 2
+// base case 3
 template< class... R_PoUs, class... PoUs >
 struct mult_units<Unit<R_PoUs...>, Unit<PoUs...>, Unit<>>
 {
@@ -398,7 +405,7 @@ template<>
 class Unit<>
 {
 protected:
-	const double val;
+	double val;
 
 	constexpr Unit<>(double val) : val(val) {}
 };
@@ -407,7 +414,7 @@ template< class... Us, int... powers >
 class Unit<PowerOfUnit<Us, powers>...>
 {
 protected:
-	const double val;
+	double val;
 
 	constexpr explicit Unit<PowerOfUnit<Us, powers>...>(double val) : val(val) {}
 };
@@ -433,7 +440,7 @@ public:
 };
 
 template< ConversionPolicy policy, class... PoUs>
-class PUnit<policy, PoUs...> : Unit<PoUs...>
+class PUnit : Unit<PoUs...>
 {
 public:
 	constexpr explicit PUnit<policy, PoUs...>(double val) : Unit<PoUs...>(val) {}
@@ -503,6 +510,30 @@ template< ConversionPolicy p, class... PoUs >
 constexpr PUnit<p, PoUs...> operator/ (PUnit<p, PoUs...> left, double right)
 {
 	return PUnit<p, PoUs...>(left.value() / right);
+}
+
+template< ConversionPolicy p, class... PoUs >
+PUnit<p, PoUs...>& operator+= (PUnit<p, PoUs...>& left, PUnit<p, PoUs...> right)
+{
+	return left = left + right;
+}
+
+template< ConversionPolicy p, class... PoUs >
+PUnit<p, PoUs...>& operator-= (PUnit<p, PoUs...>& left, PUnit<p, PoUs...> right)
+{
+	return left = left - right;
+}
+
+template< ConversionPolicy p, class... PoUs >
+PUnit<p, PoUs...>& operator*= (PUnit<p, PoUs...>& left, double right)
+{
+	return left = left * right;
+}
+
+template< ConversionPolicy p, class... PoUs >
+PUnit<p, PoUs...>& operator/= (PUnit<p, PoUs...>& left, double right)
+{
+	return left = left / right;
 }
 
 // conctruction functions
