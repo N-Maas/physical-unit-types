@@ -3,12 +3,16 @@
 #include <type_traits>
 #include <typeinfo>
 
-
 // macros for getting unit types
-#define UNIT_T(x) std::remove_const_t<decltype(x)> 
-#define UNIT_P_T(x, policy) punit_set_policy<std::remove_const_t<decltype(x)>, policy>::type 
+#define UNIT_T(x) std::remove_const_t<decltype(x)>
+#define UNIT_P_T(x, policy) punits::helpers::punit_set_policy<UNIT_T(x), policy>::type
+
+#define PUNITS_NAMESPACE_BEGIN(x) namespace x {
+#define PUNITS_NAMESPACE_END(x) }
+#define PUNITS_USE_DEFINITIONS using namespace punits::definitions
 
 #define XPU_DEF_UNIT_HELPER(x_uid, x_uname, x_is_comb, x_cf, x_dct, x_bt, x_ualias, x_upolicy) \
+	PUNITS_NAMESPACE_BEGIN(punits) PUNITS_NAMESPACE_BEGIN(definitions) \
 	struct x_uname \
 	{ \
 		static constexpr size_t unit_id = x_uid; \
@@ -17,8 +21,8 @@
 		typedef x_dct decomposition_type; \
 		typedef x_bt base_unit_type; \
 	}; \
-	 \
-	constexpr PUnit<ConversionPolicy:: ## x_upolicy, PowerOfUnit<x_uname, 1>> x_ualias{ 1.0 } \
+	constexpr PUnit<punits::ConversionPolicy::x_upolicy, punits::PowerOfUnit<x_uname, 1>> x_ualias{ 1.0 }; \
+	PUNITS_NAMESPACE_END(definitions) PUNITS_NAMESPACE_END(punits)
 
 // macros for unit definitions
 // appending _P to the macro name additionally defines the default conversion policy for the unit
@@ -35,10 +39,12 @@
 	DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_ubase, x_ucf, ExplicitConversion)
 
 #define DEFINE_COMBINED_UNIT_P(x_uid, x_uname, x_ualias, x_udecomposition_alias, x_uconversionfactor, x_upolicy) \
-	XPU_DEF_UNIT_HELPER(x_uid, x_uname, true, x_uconversionfactor, to_unit<UNIT_T(x_udecomposition_alias)>::type, void, x_ualias, x_upolicy)
+	XPU_DEF_UNIT_HELPER(x_uid, x_uname, true, x_uconversionfactor, punits::helpers::to_unit<UNIT_T(x_udecomposition_alias)>::type, void, x_ualias, x_upolicy)
 
 #define DEFINE_COMBINED_UNIT(x_uid, x_uname, x_ualias, x_uda, x_ucf) \
 	DEFINE_COMBINED_UNIT_P(x_uid, x_uname, x_ualias, x_uda, x_ucf, ExplicitConversion)
+
+PUNITS_NAMESPACE_BEGIN(punits)
 
 enum class ConversionPolicy
 {
@@ -46,6 +52,13 @@ enum class ConversionPolicy
 	ExplicitConversion,
 	ImplicitConversion
 };
+
+// fwd declarations
+template< typename... Ts >
+class Unit;
+
+template< ConversionPolicy, typename... Ts >
+class PUnit;
 
 template< class U, int pwr >
 struct PowerOfUnit
@@ -55,7 +68,9 @@ struct PowerOfUnit
 	static constexpr size_t unit_id = U::unit_id;
 };
 
-// constexpr pow
+PUNITS_NAMESPACE_BEGIN(helpers)
+
+// constexpr pow for calculating unit powers
 constexpr double constexpr_pow(double val, int exp)
 {
 	if (exp == 0) {
@@ -70,16 +85,6 @@ constexpr double constexpr_pow(double val, int exp)
 		}
 	}
 };
-
-// ----
-
-// fwd declarations
-template< typename... Ts >
-class Unit;
-
-template< ConversionPolicy, typename... Ts >
-class PUnit;
-
 
 // HELPERS
 template< class, ConversionPolicy >
@@ -398,7 +403,7 @@ template< class U1, class U2 >
 using get_factor_if_convertible = std::enable_if_t<search_conversion<U1, U2, convert_result_neutral>::is_convertible,
 	search_conversion<U1, U2, convert_result_neutral>>;
 
-// ----
+PUNITS_NAMESPACE_END(helpers)
 
 // core metaprogramming class representing a unit
 template<>
@@ -447,14 +452,14 @@ public:
 
 	constexpr double value() const { return  Unit<PoUs...>::val; }
 
-	template< ConversionPolicy new_p, class... NewPoUs, typename ConversionT = unit_conversion<Unit<PoUs...>, Unit<NewPoUs...>>,
+	template< ConversionPolicy new_p, class... NewPoUs, typename ConversionT = helpers::unit_conversion<Unit<PoUs...>, Unit<NewPoUs...>>,
 		typename = std::enable_if_t<policy == ConversionPolicy::ExplicitConversion && (new_p <= policy) && ConversionT::is_convertible> >
 	constexpr explicit operator PUnit<new_p, NewPoUs...>() const
 	{
 		return PUnit<new_p, NewPoUs...>(ConversionT::conversion_factor * value());
 	}
 
-	template< ConversionPolicy new_p, class... NewPoUs, typename ConversionT = unit_conversion<Unit<PoUs...>, Unit<NewPoUs...>>,
+	template< ConversionPolicy new_p, class... NewPoUs, typename ConversionT = helpers::unit_conversion<Unit<PoUs...>, Unit<NewPoUs...>>,
 		typename = std::enable_if_t<policy == ConversionPolicy::ImplicitConversion && (new_p <= policy) && ConversionT::is_convertible>, typename = void >
 	constexpr operator PUnit<new_p, NewPoUs...>() const
 	{
@@ -462,6 +467,20 @@ public:
 	}
 };
 
+// conctruction functions
+template< class... PoUs, ConversionPolicy p >
+constexpr PUnit<p, PoUs...> makeUnit(double val, PUnit<p, PoUs...>)
+{
+	return PUnit<p, PoUs...>(val);
+}
+
+template< ConversionPolicy policy, class... PoUs, ConversionPolicy p >
+constexpr PUnit<policy, PoUs...> makeUnit(double val, PUnit<p, PoUs...>)
+{
+	return PUnit<policy, PoUs...>(val);
+}
+
+PUNITS_NAMESPACE_BEGIN(definitions)
 
 // operators
 template<  ConversionPolicy p, class... PoUs >
@@ -477,9 +496,9 @@ constexpr PUnit<p, PoUs...> operator- (PUnit<p, PoUs...> left, PUnit<p, PoUs...>
 }
 
 template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
-constexpr mult_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p> operator* (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+constexpr helpers::mult_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p> operator* (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
 {
-	return mult_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p>(left.value() * right.value());
+	return helpers::mult_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p>(left.value() * right.value());
 }
 
 template< ConversionPolicy p, class... PoUs >
@@ -495,15 +514,15 @@ constexpr PUnit<p, PoUs...> operator* (PUnit<p, PoUs...> left, double right)
 }
 
 template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
-constexpr div_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p> operator/ (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+constexpr helpers::div_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p> operator/ (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
 {
-	return div_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p>(left.value() / right.value());
+	return helpers::div_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p>(left.value() / right.value());
 }
 
 template< ConversionPolicy p, class... PoUs >
-constexpr div_punits_t<Unit<>, Unit<PoUs...>, p> operator/ (double left, PUnit<p, PoUs...> right)
+constexpr helpers::div_punits_t<Unit<>, Unit<PoUs...>, p> operator/ (double left, PUnit<p, PoUs...> right)
 {
-	return div_punits_t<Unit<>, Unit<PoUs...>, p>(left / right.value());
+	return helpers::div_punits_t<Unit<>, Unit<PoUs...>, p>(left / right.value());
 }
 
 template< ConversionPolicy p, class... PoUs >
@@ -536,15 +555,6 @@ PUnit<p, PoUs...>& operator/= (PUnit<p, PoUs...>& left, double right)
 	return left = left / right;
 }
 
-// conctruction functions
-template< class... PoUs, ConversionPolicy p >
-constexpr PUnit<p, PoUs...> makeUnit(double val, PUnit<p, PoUs...>)
-{
-	return PUnit<p, PoUs...>(val);
-}
+PUNITS_NAMESPACE_END(definitions)
 
-template< ConversionPolicy policy, class... PoUs, ConversionPolicy p >
-constexpr PUnit<policy, PoUs...> makeUnit(double val, PUnit<p, PoUs...>)
-{
-	return PUnit<policy, PoUs...>(val);
-}
+PUNITS_NAMESPACE_END(punits)
