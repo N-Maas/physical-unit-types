@@ -7,7 +7,7 @@
 #define XPU_NAMESPACE_END(x) }
 
 // helper macro for unit definition
-#define XPU_DEF_UNIT_HELPER(x_uid, x_uname, x_is_comb, x_cf, x_dct, x_bt, x_ualias, x_upolicy) \
+#define XPU_DEF_UNIT_HELPER(x_uid, x_uname, x_is_comb, x_cf, x_dct, x_ualias, x_upolicy) \
 	XPU_NAMESPACE_BEGIN(punits) XPU_NAMESPACE_BEGIN(definitions) \
 	struct x_uname \
 	{ \
@@ -15,7 +15,6 @@
 		static constexpr bool is_combined_unit = x_is_comb; \
 		static constexpr double conversion_factor = x_cf; \
 		typedef x_dct decomposition_type; \
-		typedef x_bt base_unit_type; \
 	}; \
 	constexpr PUnit<punits::ConversionPolicy::x_upolicy, punits::PowerOfUnit<x_uname, 1>> x_ualias{ 1.0 }; \
 	XPU_NAMESPACE_END(definitions) XPU_NAMESPACE_END(punits)
@@ -30,21 +29,15 @@
 // macros for unit definitions
 // appending _P to the macro name additionally defines the default conversion policy for the unit
 #define DEFINE_BASE_UNIT_P(x_uid, x_uname, x_ualias, x_upolicy) \
-	XPU_DEF_UNIT_HELPER(x_uid, x_uname, false, 1.0, void, x_uname, x_ualias, x_upolicy)
+	XPU_DEF_UNIT_HELPER(x_uid, x_uname, false, 1.0, void, x_ualias, x_upolicy)
 
 #define DEFINE_BASE_UNIT(x_uid, x_uname, x_ualias) \
 	DEFINE_BASE_UNIT_P(x_uid, x_uname, x_ualias, ExplicitConversion)
 
-#define DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_ubase, x_uconversionfactor, x_upolicy) \
-	XPU_DEF_UNIT_HELPER(x_uid, x_uname, false, x_uconversionfactor, void, x_ubase, x_ualias, x_upolicy)
+#define DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_udecomposition_alias, x_uconversionfactor, x_upolicy) \
+	XPU_DEF_UNIT_HELPER(x_uid, x_uname, true, x_uconversionfactor, typename punits::helpers::to_unit<UNIT_T(x_udecomposition_alias)>::type, x_ualias, x_upolicy)
 
-#define DEFINE_DEPENDENT_UNIT(x_uid, x_uname, x_ualias, x_ubase, x_ucf) \
-	DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_ubase, x_ucf, ExplicitConversion)
-
-#define DEFINE_COMBINED_UNIT_P(x_uid, x_uname, x_ualias, x_udecomposition_alias, x_uconversionfactor, x_upolicy) \
-	XPU_DEF_UNIT_HELPER(x_uid, x_uname, true, x_uconversionfactor, punits::helpers::to_unit<UNIT_T(x_udecomposition_alias)>::type, void, x_ualias, x_upolicy)
-
-#define DEFINE_COMBINED_UNIT(x_uid, x_uname, x_ualias, x_uda, x_ucf) \
+#define DEFINE_DEPENDENT_UNIT(x_uid, x_uname, x_ualias, x_uda, x_ucf) \
 	DEFINE_COMBINED_UNIT_P(x_uid, x_uname, x_ualias, x_uda, x_ucf, ExplicitConversion)
 
 XPU_NAMESPACE_BEGIN(punits)
