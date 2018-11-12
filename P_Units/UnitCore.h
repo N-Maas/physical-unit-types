@@ -6,6 +6,24 @@
 #define XPU_NAMESPACE_BEGIN(x) namespace x {
 #define XPU_NAMESPACE_END(x) }
 
+// enables implicit application of an operator requiring equal unit types (like +, <=, ...)
+#define XPU_MAKE_OPERATOR_IMPLICITELY_APPLYABLE(x_op) \
+	template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs, typename = std::enable_if_t< \
+		!std::is_same_v<PUnit<p, Left_PoUs...>, PUnit<ConversionPolicy::ImplicitConversion, Right_PoUs...>> && \
+		helpers::unit_conversion<Unit<Right_PoUs...>, Unit<Left_PoUs...>>::is_convertible>> \
+	constexpr auto operator x_op (PUnit<p, Left_PoUs...> left, PUnit<ConversionPolicy::ImplicitConversion, Right_PoUs...> right) \
+	{ \
+		return left x_op PUnit<p, Left_PoUs...>(right); \
+	} \
+	\
+	template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs, typename = std::enable_if_t< \
+		p != ConversionPolicy::ImplicitConversion && helpers::unit_conversion<Unit<Right_PoUs...>, Unit<Left_PoUs...>>::is_convertible>> \
+	constexpr auto operator x_op (PUnit<ConversionPolicy::ImplicitConversion, Left_PoUs...> left, PUnit<p, Right_PoUs...> right) \
+	{ \
+		return PUnit<p, Right_PoUs...>(left) x_op right; \
+	}
+
+
 // helper macro for unit definition
 #define XPU_DEF_UNIT_HELPER(x_uid, x_uname, x_is_comb, x_cf, x_dct, x_ualias, x_upolicy) \
 	XPU_NAMESPACE_BEGIN(punits) XPU_NAMESPACE_BEGIN(definitions) \
@@ -21,7 +39,7 @@
 
 // macros for getting unit types
 #define UNIT_T(x) std::remove_const_t<decltype(x)>
-#define UNIT_P_T(x, policy) punits::helpers::punit_set_policy<UNIT_T(x), policy>::type
+#define UNIT_T_P(x, policy) punits::helpers::punit_set_policy<UNIT_T(x), policy>::type
 
 // using the namespace containing unit definitions and operators
 #define PUNITS_USE_DEFINITIONS using namespace punits::definitions
@@ -38,7 +56,7 @@
 	XPU_DEF_UNIT_HELPER(x_uid, x_uname, true, x_uconversionfactor, typename punits::helpers::to_unit<UNIT_T(x_udecomposition_alias)>::type, x_ualias, x_upolicy)
 
 #define DEFINE_DEPENDENT_UNIT(x_uid, x_uname, x_ualias, x_uda, x_ucf) \
-	DEFINE_COMBINED_UNIT_P(x_uid, x_uname, x_ualias, x_uda, x_ucf, ExplicitConversion)
+	DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_uda, x_ucf, ExplicitConversion)
 
 XPU_NAMESPACE_BEGIN(punits)
 
@@ -144,17 +162,21 @@ constexpr PUnit<policy, PoUs...> makeUnit(double val, PUnit<p, PoUs...>)
 XPU_NAMESPACE_BEGIN(definitions)
 
 // operators
-template<  ConversionPolicy p, class... PoUs >
+template< ConversionPolicy p, class... PoUs >
 constexpr PUnit<p, PoUs...> operator+ (PUnit<p, PoUs...> left, PUnit<p, PoUs...> right)
 {
 	return PUnit<p, PoUs...>(left.value() + right.value());
 }
 
-template<  ConversionPolicy p, class... PoUs >
+XPU_MAKE_OPERATOR_IMPLICITELY_APPLYABLE(+)
+
+template< ConversionPolicy p, class... PoUs >
 constexpr PUnit<p, PoUs...> operator- (PUnit<p, PoUs...> left, PUnit<p, PoUs...> right)
 {
 	return PUnit<p, PoUs...>(left.value() - right.value());
 }
+
+XPU_MAKE_OPERATOR_IMPLICITELY_APPLYABLE(-)
 
 template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
 constexpr helpers::mult_punits_t<Unit<Left_PoUs...>, Unit<Right_PoUs...>, p> operator* (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
@@ -198,11 +220,15 @@ constexpr bool operator< (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> r
 	return left.value() < right.value();
 }
 
+XPU_MAKE_OPERATOR_IMPLICITELY_APPLYABLE(<)
+
 template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
 constexpr bool operator> (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
 {
 	return left.value() > right.value();
 }
+
+XPU_MAKE_OPERATOR_IMPLICITELY_APPLYABLE(>)
 
 template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
 constexpr bool operator<= (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
@@ -210,11 +236,15 @@ constexpr bool operator<= (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> 
 	return left.value() <= right.value();
 }
 
+XPU_MAKE_OPERATOR_IMPLICITELY_APPLYABLE(<=)
+
 template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
 constexpr bool operator>= (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
 {
 	return left.value() >= right.value();
 }
+
+XPU_MAKE_OPERATOR_IMPLICITELY_APPLYABLE(>=)
 
 // should equality comparison really be supported? (floating point...)
 template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
@@ -223,6 +253,8 @@ constexpr bool operator== (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> 
 	return left.value() == right.value();
 }
 
+XPU_MAKE_OPERATOR_IMPLICITELY_APPLYABLE(==)
+
 // should equality comparison really be supported? (floating point...)
 template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
 constexpr bool operator!= (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
@@ -230,14 +262,20 @@ constexpr bool operator!= (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> 
 	return left.value() != right.value();
 }
 
-template< ConversionPolicy p, class... PoUs >
-PUnit<p, PoUs...>& operator+= (PUnit<p, PoUs...>& left, PUnit<p, PoUs...> right)
+XPU_MAKE_OPERATOR_IMPLICITELY_APPLYABLE(!=)
+
+// with SFINAE guard for implicit application
+template< ConversionPolicy left_p, class... Left_PoUs, ConversionPolicy right_p, class... Right_PoUs,
+	typename = decltype(std::declval<PUnit<left_p, Left_PoUs...>&>() = std::declval<PUnit<left_p, Left_PoUs...>>() + std::declval<PUnit<right_p, Right_PoUs...>>()) >
+PUnit<left_p, Left_PoUs...>& operator+= (PUnit<left_p, Left_PoUs...>& left, PUnit<right_p, Right_PoUs...> right)
 {
 	return left = left + right;
 }
 
-template< ConversionPolicy p, class... PoUs >
-PUnit<p, PoUs...>& operator-= (PUnit<p, PoUs...>& left, PUnit<p, PoUs...> right)
+// with SFINAE guard for implicit application
+template< ConversionPolicy left_p, class... Left_PoUs, ConversionPolicy right_p, class... Right_PoUs,
+	typename = decltype(std::declval<PUnit<left_p, Left_PoUs...>&>() = std::declval<PUnit<left_p, Left_PoUs...>>() - std::declval<PUnit<right_p, Right_PoUs...>>()) >
+	PUnit<left_p, Left_PoUs...>& operator-= (PUnit<left_p, Left_PoUs...>& left, PUnit<right_p, Right_PoUs...> right)
 {
 	return left = left - right;
 }
