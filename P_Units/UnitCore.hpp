@@ -5,7 +5,7 @@
 // the include gets removed by pragma once
 #include "UnitCore.h"
 
-PUNITS_NAMESPACE_BEGIN(helpers)
+XPU_NAMESPACE_BEGIN(helpers)
 
 // constexpr pow for calculating unit powers
 constexpr double constexpr_pow(double val, int exp)
@@ -340,4 +340,4 @@ template< class U1, class U2 >
 using get_factor_if_convertible = std::enable_if_t<search_conversion<U1, U2, convert_result_neutral>::is_convertible,
 	search_conversion<U1, U2, convert_result_neutral>>;
 
-PUNITS_NAMESPACE_END(helpers)
+XPU_NAMESPACE_END(helpers)

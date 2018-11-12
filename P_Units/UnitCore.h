@@ -2,29 +2,30 @@
 
 #include <type_traits>
 
-// macros for getting unit types
-#define UNIT_T(x) std::remove_const_t<decltype(x)>
-#define UNIT_P_T(x, policy) punits::helpers::punit_set_policy<UNIT_T(x), policy>::type
-
-// using the namespace containing unit definitions and operators
-#define PUNITS_USE_DEFINITIONS using namespace punits::definitions
-
-#define PUNITS_NAMESPACE_BEGIN(x) namespace x {
-#define PUNITS_NAMESPACE_END(x) }
+// macros beginning with XPU_ are for internal usage (macros for the user begin with PUNITS_)
+#define XPU_NAMESPACE_BEGIN(x) namespace x {
+#define XPU_NAMESPACE_END(x) }
 
 // helper macro for unit definition
 #define XPU_DEF_UNIT_HELPER(x_uid, x_uname, x_is_comb, x_cf, x_dct, x_bt, x_ualias, x_upolicy) \
-	PUNITS_NAMESPACE_BEGIN(punits) PUNITS_NAMESPACE_BEGIN(definitions) \
+	XPU_NAMESPACE_BEGIN(punits) XPU_NAMESPACE_BEGIN(definitions) \
 	struct x_uname \
 	{ \
-		static constexpr size_t unit_id = x_uid; \
+		static constexpr std::size_t unit_id = x_uid; \
 		static constexpr bool is_combined_unit = x_is_comb; \
 		static constexpr double conversion_factor = x_cf; \
 		typedef x_dct decomposition_type; \
 		typedef x_bt base_unit_type; \
 	}; \
 	constexpr PUnit<punits::ConversionPolicy::x_upolicy, punits::PowerOfUnit<x_uname, 1>> x_ualias{ 1.0 }; \
-	PUNITS_NAMESPACE_END(definitions) PUNITS_NAMESPACE_END(punits)
+	XPU_NAMESPACE_END(definitions) XPU_NAMESPACE_END(punits)
+
+// macros for getting unit types
+#define UNIT_T(x) std::remove_const_t<decltype(x)>
+#define UNIT_P_T(x, policy) punits::helpers::punit_set_policy<UNIT_T(x), policy>::type
+
+// using the namespace containing unit definitions and operators
+#define PUNITS_USE_DEFINITIONS using namespace punits::definitions
 
 // macros for unit definitions
 // appending _P to the macro name additionally defines the default conversion policy for the unit
@@ -46,7 +47,7 @@
 #define DEFINE_COMBINED_UNIT(x_uid, x_uname, x_ualias, x_uda, x_ucf) \
 	DEFINE_COMBINED_UNIT_P(x_uid, x_uname, x_ualias, x_uda, x_ucf, ExplicitConversion)
 
-PUNITS_NAMESPACE_BEGIN(punits)
+XPU_NAMESPACE_BEGIN(punits)
 
 enum class ConversionPolicy
 {
@@ -67,7 +68,7 @@ struct PowerOfUnit
 {
 	typedef U unit_type;
 	static constexpr int power = pwr;
-	static constexpr size_t unit_id = U::unit_id;
+	static constexpr std::size_t unit_id = U::unit_id;
 };
 
 #include "UnitCore.hpp"
@@ -147,7 +148,7 @@ constexpr PUnit<policy, PoUs...> makeUnit(double val, PUnit<p, PoUs...>)
 	return PUnit<policy, PoUs...>(val);
 }
 
-PUNITS_NAMESPACE_BEGIN(definitions)
+XPU_NAMESPACE_BEGIN(definitions)
 
 // operators
 template<  ConversionPolicy p, class... PoUs >
@@ -198,6 +199,44 @@ constexpr PUnit<p, PoUs...> operator/ (PUnit<p, PoUs...> left, double right)
 	return PUnit<p, PoUs...>(left.value() / right);
 }
 
+template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
+constexpr bool operator< (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+{
+	return left.value() < right.value();
+}
+
+template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
+constexpr bool operator> (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+{
+	return left.value() > right.value();
+}
+
+template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
+constexpr bool operator<= (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+{
+	return left.value() <= right.value();
+}
+
+template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
+constexpr bool operator>= (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+{
+	return left.value() >= right.value();
+}
+
+// should equality comparison really be supported? (floating point...)
+template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
+constexpr bool operator== (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+{
+	return left.value() == right.value();
+}
+
+// should equality comparison really be supported? (floating point...)
+template< ConversionPolicy p, class... Left_PoUs, class... Right_PoUs >
+constexpr bool operator!= (PUnit<p, Left_PoUs...> left, PUnit<p, Right_PoUs...> right)
+{
+	return left.value() != right.value();
+}
+
 template< ConversionPolicy p, class... PoUs >
 PUnit<p, PoUs...>& operator+= (PUnit<p, PoUs...>& left, PUnit<p, PoUs...> right)
 {
@@ -222,6 +261,6 @@ PUnit<p, PoUs...>& operator/= (PUnit<p, PoUs...>& left, double right)
 	return left = left / right;
 }
 
-PUNITS_NAMESPACE_END(definitions)
+XPU_NAMESPACE_END(definitions)
 
-PUNITS_NAMESPACE_END(punits)
+XPU_NAMESPACE_END(punits)
