@@ -275,7 +275,7 @@ PUnit<left_p, Left_PoUs...>& operator+= (PUnit<left_p, Left_PoUs...>& left, PUni
 // with SFINAE guard for implicit application
 template< ConversionPolicy left_p, class... Left_PoUs, ConversionPolicy right_p, class... Right_PoUs,
 	typename = decltype(std::declval<PUnit<left_p, Left_PoUs...>&>() = std::declval<PUnit<left_p, Left_PoUs...>>() - std::declval<PUnit<right_p, Right_PoUs...>>()) >
-	PUnit<left_p, Left_PoUs...>& operator-= (PUnit<left_p, Left_PoUs...>& left, PUnit<right_p, Right_PoUs...> right)
+PUnit<left_p, Left_PoUs...>& operator-= (PUnit<left_p, Left_PoUs...>& left, PUnit<right_p, Right_PoUs...> right)
 {
 	return left = left - right;
 }
@@ -290,6 +290,46 @@ template< ConversionPolicy p, class... PoUs >
 PUnit<p, PoUs...>& operator/= (PUnit<p, PoUs...>& left, double right)
 {
 	return left = left / right;
+}
+
+template< ConversionPolicy p, class... PoUs >
+constexpr PUnit<p, PoUs...> operator+ (PUnit<p, PoUs...> val)
+{
+	return val;
+}
+
+template< ConversionPolicy p, class... PoUs >
+constexpr PUnit<p, PoUs...> operator- (PUnit<p, PoUs...> val)
+{
+	return PUnit<p, PoUs...>(-val.value());
+}
+
+template< ConversionPolicy p, class... PoUs >
+PUnit<p, PoUs...>& operator++ (PUnit<p, PoUs...>& val)
+{
+	return val += PUnit<p, PoUs...>(1);
+}
+
+template< ConversionPolicy p, class... PoUs >
+PUnit<p, PoUs...>& operator-- (PUnit<p, PoUs...>& val)
+{
+	return val -= PUnit<p, PoUs...>(1);
+}
+
+template< ConversionPolicy p, class... PoUs >
+PUnit<p, PoUs...> operator++ (PUnit<p, PoUs...>& val, int)
+{
+	PUnit<p, PoUs...> temp = val;
+	++val;
+	return temp;
+}
+
+template< ConversionPolicy p, class... PoUs >
+PUnit<p, PoUs...> operator-- (PUnit<p, PoUs...>& val, int)
+{
+	PUnit<p, PoUs...> temp = val;
+	--val;
+	return temp;
 }
 
 XPU_NAMESPACE_END(definitions)
