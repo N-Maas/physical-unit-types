@@ -19,6 +19,19 @@ constexpr double constexpr_pow(double val, int exp)
 	return constexpr_pow(val, exp + 1) / val;
 };
 
+// generate string of a unit type
+template< ConversionPolicy p >
+std::string unit_name(PUnit<p>) {
+	return "";
+}
+
+template< class Head, int power, class... PoUs, ConversionPolicy p >
+std::string unit_name(PUnit<p, PowerOfUnit<Head, power>, PoUs...>) {
+	std::string tail = unit_name(PUnit<p, PoUs...>(0));
+	return Head::unitName() + (power == 1 ? std::string("") : (std::string("^")
+		+ std::to_string(power))) + (tail.empty() ? std::string("") : std::string("*") + tail);
+}
+
 // HELPERS
 template< class, ConversionPolicy >
 struct to_punit;

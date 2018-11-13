@@ -1,6 +1,8 @@
 #pragma once
 
 #include <type_traits>
+#include <strstream>
+#include <string>
 
 // macros beginning with XPU_ are for internal usage (macros for the user begin with PUNITS_)
 #define XPU_NAMESPACE_BEGIN(x) namespace x {
@@ -33,6 +35,11 @@
 		static constexpr bool is_combined_unit = x_is_comb; \
 		static constexpr double conversion_factor = x_cf; \
 		typedef x_dct decomposition_type; \
+		 \
+		static std::string unitName() \
+		{ \
+			return #x_ualias; \
+		} \
 	}; \
 	constexpr PUnit<punits::ConversionPolicy::x_upolicy, punits::PowerOfUnit<x_uname, 1>> x_ualias{ 1.0 }; \
 	XPU_NAMESPACE_END(definitions) XPU_NAMESPACE_END(punits)
@@ -115,6 +122,10 @@ public:
 
 	constexpr double value() const { return Unit<>::val; }
 
+	static std::string unitName() { return ""; }
+
+	std::string name() const { return std::to_string(value()); }
+
 	// necessary to restrict conversions to stricter policy?
 	template< ConversionPolicy new_p, typename = std::enable_if_t<new_p <= policy> >
 	constexpr operator PUnit<new_p>()
@@ -130,6 +141,10 @@ public:
 	constexpr explicit PUnit<policy, PoUs...>(double val) : Unit<PoUs...>(val) {}
 
 	constexpr double value() const { return  Unit<PoUs...>::val; }
+
+	static std::string unitName() { return helpers::unit_name(PUnit<policy, PoUs...>(0)); }
+
+	std::string name() const { return std::to_string(value()) + " * " + unitName(); }
 
 	template< ConversionPolicy new_p, class... NewPoUs, typename ConversionT = helpers::unit_conversion<Unit<PoUs...>, Unit<NewPoUs...>>,
 		typename = std::enable_if_t<policy == ConversionPolicy::ExplicitConversion && (new_p <= policy) && ConversionT::is_convertible> >
