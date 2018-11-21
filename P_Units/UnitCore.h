@@ -1,8 +1,9 @@
 #pragma once
 
 #include <type_traits>
-#include <strstream>
 #include <string>
+
+/* --- macro definitions --- */
 
 // macros beginning with XPU_ are for internal usage (macros for the user begin with PUNITS_)
 #define XPU_NAMESPACE_BEGIN(x) namespace x {
@@ -62,11 +63,18 @@
 #define DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_udecomposition_alias, x_uconversionfactor, x_upolicy) \
 	XPU_DEF_UNIT_HELPER(x_uid, x_uname, true, x_uconversionfactor, typename punits::helpers::to_unit<UNIT_T(x_udecomposition_alias)>::type, x_ualias, x_upolicy)
 
-#define DEFINE_DEPENDENT_UNIT(x_uid, x_uname, x_ualias, x_uda, x_ucf) \
-	DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_uda, x_ucf, ExplicitConversion)
+#define DEFINE_DEPENDENT_UNIT(x_uid, x_uname, x_ualias, x_udecomposition_alias, x_uconversionfactor) \
+	DEFINE_DEPENDENT_UNIT_P(x_uid, x_uname, x_ualias, x_udecomposition_alias, x_uconversionfactor, ExplicitConversion)
+
+/* --- end of macro definitions --- */
+
 
 XPU_NAMESPACE_BEGIN(punits)
 
+// possible conversion policies for units:
+//    - NoConversion: disables any conversion, values must be accessed manually for conversion
+//    - ExplicitConversion: enables conversions by explicitely calling conversion operator
+//    - ImplicitConversion: enables conversions by conversion operator and implicit conversions
 enum class ConversionPolicy
 {
 	NoConversion,
